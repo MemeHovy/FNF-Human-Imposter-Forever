@@ -4,6 +4,7 @@ import openfl.events.Event;
 import flixel.FlxG;
 import vlc.bitmap.VlcBitmap;
 
+#if (hxCodec < "2.6.0")
 /**
  * Play a video using cpp.
  * Use bitmap to connect to a graphic or use `MP4Sprite`.
@@ -127,3 +128,4 @@ class MP4Handler extends VlcBitmap
 		#end
 	}
 }
+#end

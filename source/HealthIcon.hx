@@ -88,9 +88,8 @@ class HealthIcon extends FlxSprite
 		offset.y = iconOffsets[1];
 	}
 
-	public function getCharacter():String {
+	inline public function getCharacter():String
 		return char;
-	}
 
 	public function changeAnim(isLosing:Bool, ?isWinning:Bool = false) {
 		if(!isAnimated) {

@@ -79,8 +79,11 @@ import sys.FileSystem;
 import sys.io.File;
 #end
 
-#if VIDEOS_ALLOWED
-#if (hxCodec >= "2.6.1") import hxcodec.VideoHandler as MP4Handler;
+#if VIDEOS_ALLOWED 
+#if (hxCodec >= "3.0.0")
+import hxcodec.flixel.FlxVideo as MP4Handler;
+import lime.app.Event;
+#elseif (hxCodec >= "2.6.1") import hxcodec.VideoHandler as MP4Handler;
 #elseif (hxCodec == "2.6.0") import VideoHandler as MP4Handler;
 #else import vlc.MP4Handler; #end
 #end
@@ -108,7 +111,6 @@ class PlayState extends MusicBeatState
 	//event variables
 	private var isCameraOnForcedPos:Bool = false;
 
-	#if (haxe >= "4.0.0")
 	public var boyfriendMap:Map<String, Boyfriend> = new Map();
 	public var dadMap:Map<String, Character> = new Map();
 	public var gfMap:Map<String, Character> = new Map();
@@ -119,18 +121,6 @@ class PlayState extends MusicBeatState
 	public var modchartSounds:Map<String, FlxSound> = new Map<String, FlxSound>();
 	public var modchartTexts:Map<String, ModchartText> = new Map<String, ModchartText>();
 	public var modchartSaves:Map<String, FlxSave> = new Map<String, FlxSave>();
-	#else
-	public var boyfriendMap:Map<String, Boyfriend> = new Map<String, Boyfriend>();
-	public var dadMap:Map<String, Character> = new Map<String, Character>();
-	public var gfMap:Map<String, Character> = new Map<String, Character>();
-	public var variables:Map<String, Dynamic> = new Map<String, Dynamic>();
-	public var modchartTweens:Map<String, FlxTween> = new Map();
-	public var modchartSprites:Map<String, ModchartSprite> = new Map();
-	public var modchartTimers:Map<String, FlxTimer> = new Map();
-	public var modchartSounds:Map<String, FlxSound> = new Map();
-	public var modchartTexts:Map<String, ModchartText> = new Map();
-	public var modchartSaves:Map<String, FlxSave> = new Map();
-	#end
 
 	public var BF_X:Float = 770;
 	public var BF_Y:Float = 100;
@@ -482,14 +472,6 @@ class PlayState extends MusicBeatState
 		boyfriendGroup = new FlxSpriteGroup(BF_X, BF_Y);
 		dadGroup = new FlxSpriteGroup(DAD_X, DAD_Y);
 
-		switch (curStage)
-		{
-		}
-
-		switch(Paths.formatToSongPath(SONG.song))
-		{
-		}
-
 		if(isPixelStage) {
 			introSoundsSuffix = '-pixel';
 		}
@@ -672,12 +654,7 @@ class PlayState extends MusicBeatState
 		opponentStrums = new FlxTypedGroup<StrumNote>();
 		playerStrums = new FlxTypedGroup<StrumNote>();
 
-		// startCountdown();
-
-		generateSong(SONG.song);
-
-		// After all characters being loaded, it makes then invisible 0.01s later so that the player won't freeze when you change characters
-		// add(strumLine);
+		generateSong();
 
 		camFollow = new FlxPoint();
 		camFollowPos = new FlxObject(0, 0, 1, 1);
@@ -769,11 +746,6 @@ class PlayState extends MusicBeatState
 		timeTxt.cameras = [camHUD];
 		doof.cameras = [camHUD];
 
-		// if (SONG.song == 'South')
-		// FlxG.camera.alpha = 0.7;
-		// UI_camera.zoom = 1;
-
-		// cameras = [FlxG.cameras.list[1]];
 		startingSong = true;
 		
 		#if LUA_ALLOWED
@@ -847,7 +819,7 @@ class PlayState extends MusicBeatState
 				case "magmatic":
 					startDialogue(dialogueJson, null, 'magmatic');
 				case "delusion":
-					startDialogue(dialogueJson, null, '');
+					startDialogue(dialogueJson, null, null);
 				case "heartbeat":
 					startDialogue(dialogueJson, null, 'heartbeat');
 				case "pinkwave":
@@ -1212,13 +1184,27 @@ class PlayState extends MusicBeatState
 		}
 
 		var video:MP4Handler = new MP4Handler();
-		video.skippable = false;
+		#if (hxCodec >= "3.0.0")
+		video.play(filepath, false);
+		video.onEndReached.add(() ->
+		{
+			video.dispose();
+			inCutscene = false;
+			return;
+		});
+		#else
 		video.playVideo(filepath, false, true);
-		video.finishCallback = function()
+		#if (hxCodec < "2.6.0")
+		video.skippable = false;
+		#else
+		video.canSkip = false;
+		#end
+		video.finishCallback = () ->
 		{
 			inCutscene = false;
 			return;
 		}
+		#end
 		#else
 		FlxG.log.warn('Platform not supported!');
 		inCutscene = false;
@@ -1244,12 +1230,22 @@ class PlayState extends MusicBeatState
 		}
 
 		var video:MP4Handler = new MP4Handler();
+		#if (hxCodec >= "3.0.0")
+		video.play(filepath);
+		video.onEndReached.add(() ->
+		{
+			video.dispose();
+			startAndEnd();
+			return;
+		});
+		#else
 		video.playVideo(filepath);
-		video.finishCallback = function()
+		video.finishCallback = () ->
 		{
 			startAndEnd();
 			return;
 		}
+		#end
 		#else
 		FlxG.log.warn('Platform not supported!');
 		startAndEnd();
@@ -1257,7 +1253,7 @@ class PlayState extends MusicBeatState
 		#end
 	}
 
-	function startAndEnd()
+	inline function startAndEnd()
 	{
 		if(endingSong)
 			endSong();
@@ -1273,9 +1269,8 @@ class PlayState extends MusicBeatState
 		// TO DO: Make this more flexible, maybe?
 		if(psychDialogue != null) return;
 
-		if (bgMusic != null) {
-			 FlxG.sound.playMusic(Paths.music('dialogue_music/' + bgMusic));
-		}
+		if (bgMusic != null)
+			FlxG.sound.playMusic(Paths.music('dialogue_music/' + bgMusic));
 
 		new FlxTimer().start(0.8, function(tmr:FlxTimer) {
 			if(dialogueFile.dialogue.length > 0) {
@@ -1661,9 +1656,8 @@ class PlayState extends MusicBeatState
 	var debugNum:Int = 0;
 	private var noteTypeMap:Map<String, Bool> = new Map<String, Bool>();
 	private var eventPushedMap:Map<String, Bool> = new Map<String, Bool>();
-	private function generateSong(dataPath:String):Void
+	private function generateSong():Void
 	{
-		// FlxG.log.add(ChartParser.parse());
 		songSpeedType = ClientPrefs.getGameplaySetting('scrolltype','multiplicative');
 
 		switch(songSpeedType)
